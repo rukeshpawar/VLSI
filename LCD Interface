@@ -1,0 +1,230 @@
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity lcd_interface is
+    Port (
+        clk    : in STD_LOGIC;
+        rst    : in STD_LOGIC;
+
+        lcd_e  : out STD_LOGIC;
+        lcd_rs : out STD_LOGIC;
+        lcd_rw : out STD_LOGIC;
+
+        lcd_db : out STD_LOGIC_VECTOR(7 downto 0)
+    );
+end lcd_interface;
+
+architecture Behavioral of lcd_interface is
+
+    type state_type is
+        (ST_RESET, ST_INIT, ST_COMMAND, ST_DATA, ST_DONE);
+
+    signal state : state_type := ST_RESET;
+
+    signal count : unsigned(23 downto 0)
+                 := (others => '0');
+
+    type rom_commands is array (0 to 5) of
+        STD_LOGIC_VECTOR(7 downto 0);
+
+    constant commands : rom_commands := (
+        X"38",
+        X"38",
+        X"0C",
+        X"01",
+        X"06",
+        X"80"
+    );
+
+    type rom_data is array (0 to 10) of
+        STD_LOGIC_VECTOR(7 downto 0);
+
+    constant data_chars : rom_data := (
+        X"48", X"45", X"4C", X"4C",
+        X"4F", X"20", X"57", X"4F",
+        X"52", X"4C", X"44"
+    );
+
+    signal index : integer := 0;
+    signal e_state : STD_LOGIC := '0';
+
+begin
+
+    lcd_rw <= '0';
+    lcd_e <= e_state;
+
+    process(clk, rst)
+    begin
+
+        if rst = '1' then
+
+            state <= ST_RESET;
+            count <= (others => '0');
+            index <= 0;
+            e_state <= '0';
+            lcd_rs <= '0';
+            lcd_db <= X"00";
+
+        elsif rising_edge(clk) then
+
+            case state is
+
+                -- LCD power-up delay
+                when ST_RESET =>
+
+                    lcd_rs <= '0';
+
+                    if count < 1000000 then
+                        count <= count + 1;
+                    else
+                        count <= (others => '0');
+                        state <= ST_INIT;
+                    end if;
+
+                -- Initialization commands
+                when ST_INIT =>
+
+                    lcd_rs <= '0';
+                    lcd_db <= commands(index);
+
+                    if count < 100000 then
+
+                        count <= count + 1;
+
+                        if count < 2000 then
+                            e_state <= '0';
+                        elsif count < 10000 then
+                            e_state <= '1';
+                        else
+                            e_state <= '0';
+                        end if;
+
+                    else
+
+                        count <= (others => '0');
+
+                        if index < 5 then
+                            index <= index + 1;
+                        else
+                            index <= 0;
+                            state <= ST_DATA;
+                        end if;
+
+                    end if;
+
+                -- Send character data
+                when ST_DATA =>
+
+                    lcd_rs <= '1';
+                    lcd_db <= data_chars(index);
+
+                    if count < 100000 then
+
+                        count <= count + 1;
+
+                        if count < 2000 then
+                            e_state <= '0';
+                        elsif count < 10000 then
+                            e_state <= '1';
+                        else
+                            e_state <= '0';
+                        end if;
+
+                    else
+
+                        count <= (others => '0');
+
+                        if index < 10 then
+                            index <= index + 1;
+                        else
+                            state <= ST_DONE;
+                        end if;
+
+                    end if;
+
+                -- Idle state
+                when ST_DONE =>
+
+                    e_state <= '0';
+                    state <= ST_DONE;
+
+                when others =>
+
+                    state <= ST_RESET;
+
+            end case;
+
+        end if;
+
+    end process;
+
+end Behavioral;
+
+
+
+
+################################### Testbench code #####################################
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity tb_lcd_interface is
+end tb_lcd_interface;
+
+architecture behavior of tb_lcd_interface is
+
+    signal clk : std_logic := '0';
+    signal rst : std_logic := '0';
+
+    signal lcd_e : std_logic;
+    signal lcd_rs : std_logic;
+    signal lcd_rw : std_logic;
+
+    signal lcd_db : std_logic_vector(7 downto 0);
+
+    -- 50 MHz clock
+    constant clk_period : time := 20 ns;
+
+begin
+
+    -- Instantiate LCD design
+    uut: entity work.lcd_interface
+        port map (
+            clk => clk,
+            rst => rst,
+            lcd_e => lcd_e,
+            lcd_rs => lcd_rs,
+            lcd_rw => lcd_rw,
+            lcd_db => lcd_db
+        );
+
+    -- Clock generation
+    clk_process : process
+    begin
+
+        clk <= '0';
+        wait for clk_period/2;
+
+        clk <= '1';
+        wait for clk_period/2;
+
+    end process;
+
+    -- Reset generation
+    stim_proc : process
+    begin
+
+        rst <= '1';
+        wait for 100 ns;
+
+        rst <= '0';
+
+        wait;
+
+    end process;
+
+end behavior;
