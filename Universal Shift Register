@@ -1,0 +1,172 @@
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity Universal_Shift_Register is
+    Port (
+        Clk          : in STD_LOGIC;
+        Reset        : in STD_LOGIC;
+        Sel          : in STD_LOGIC_VECTOR(1 downto 0);
+        Serial_In    : in STD_LOGIC;
+        Parallel_In  : in STD_LOGIC_VECTOR(3 downto 0);
+        Parallel_Out : out STD_LOGIC_VECTOR(3 downto 0);
+        Serial_Out   : out STD_LOGIC
+    );
+end Universal_Shift_Register;
+
+architecture Behavioral of Universal_Shift_Register is
+
+    signal Reg_Data : STD_LOGIC_VECTOR(3 downto 0)
+                     := (others => '0');
+
+begin
+
+    process(Clk, Reset)
+    begin
+
+        if Reset = '1' then
+            Reg_Data <= (others => '0');
+
+        elsif rising_edge(Clk) then
+
+            case Sel is
+
+                when "00" =>
+                    -- SISO / SIPO
+                    Reg_Data <= Serial_In &
+                                Reg_Data(3 downto 1);
+
+                when "01" =>
+                    -- PISO
+                    Reg_Data <= '0' &
+                                Reg_Data(3 downto 1);
+
+                when "10" =>
+                    -- PIPO
+                    Reg_Data <= Parallel_In;
+
+                when others =>
+                    -- Hold
+                    Reg_Data <= Reg_Data;
+
+            end case;
+
+        end if;
+    end process;
+
+    Parallel_Out <= Reg_Data;
+    Serial_Out <= Reg_Data(0);
+
+end Behavioral;
+
+
+
+
+
+############################ Test Bench ######################################
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity TB_Universal_Shift_Register is
+end TB_Universal_Shift_Register;
+
+architecture Behavioral of TB_Universal_Shift_Register is
+
+    component Universal_Shift_Register
+        Port (
+            Clk          : in STD_LOGIC;
+            Reset        : in STD_LOGIC;
+            Sel          : in STD_LOGIC_VECTOR(1 downto 0);
+            Serial_In    : in STD_LOGIC;
+            Parallel_In  : in STD_LOGIC_VECTOR(3 downto 0);
+            Parallel_Out : out STD_LOGIC_VECTOR(3 downto 0);
+            Serial_Out   : out STD_LOGIC
+        );
+    end component;
+
+    signal Clk, Reset, Serial_In : STD_LOGIC := '0';
+
+    signal Sel : STD_LOGIC_VECTOR(1 downto 0)
+                 := "00";
+
+    signal Parallel_In, Parallel_Out :
+           STD_LOGIC_VECTOR(3 downto 0)
+           := (others => '0');
+
+    signal Serial_Out : STD_LOGIC;
+
+    constant Clk_Period : time := 10 ns;
+
+begin
+
+    UUT: Universal_Shift_Register
+    port map (
+        Clk => Clk,
+        Reset => Reset,
+        Sel => Sel,
+        Serial_In => Serial_In,
+        Parallel_In => Parallel_In,
+        Parallel_Out => Parallel_Out,
+        Serial_Out => Serial_Out
+    );
+
+    -- Clock Generation
+    Clk_Process : process
+    begin
+        Clk <= '0';
+        wait for Clk_Period/2;
+
+        Clk <= '1';
+        wait for Clk_Period/2;
+    end process;
+
+    -- Input Testing
+    Stim_Process : process
+    begin
+
+        -- Reset
+        Reset <= '1';
+        wait for 20 ns;
+
+        Reset <= '0';
+        wait for 10 ns;
+
+        -- PIPO
+        Sel <= "10";
+        Parallel_In <= "1011";
+        wait for Clk_Period;
+
+        -- PISO: Parallel Load
+        Sel <= "10";
+        Parallel_In <= "1101";
+        wait for Clk_Period;
+
+        -- PISO: Shift
+        Sel <= "01";
+        wait for 4 * Clk_Period;
+
+        -- SISO / SIPO
+        Sel <= "00";
+
+        Serial_In <= '1';
+        wait for Clk_Period;
+
+        Serial_In <= '0';
+        wait for Clk_Period;
+
+        Serial_In <= '1';
+        wait for Clk_Period;
+
+        Serial_In <= '1';
+        wait for Clk_Period;
+
+        -- Hold
+        Sel <= "11";
+        wait for 2 * Clk_Period;
+
+        wait;
+    end process;
+
+end Behavioral;
