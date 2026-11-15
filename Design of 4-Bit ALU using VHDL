@@ -1,3 +1,4 @@
+#################### VHDL code ##########################
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -46,6 +47,66 @@ begin
                 Result <= "0000";
 
         end case;
+    end process;
+
+end Behavioral;
+
+
+
+
+
+
+
+######## VHDL Testbench code ######################
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity tb_alu_4bit is
+end tb_alu_4bit;
+
+architecture Behavioral of tb_alu_4bit is
+
+    component alu_4bit
+        Port (
+            A      : in  STD_LOGIC_VECTOR(3 downto 0);
+            B      : in  STD_LOGIC_VECTOR(3 downto 0);
+            Sel    : in  STD_LOGIC_VECTOR(2 downto 0);
+            Result : out STD_LOGIC_VECTOR(3 downto 0)
+        );
+    end component;
+
+    signal A, B : STD_LOGIC_VECTOR(3 downto 0);
+    signal Sel  : STD_LOGIC_VECTOR(2 downto 0);
+    signal Result : STD_LOGIC_VECTOR(3 downto 0);
+
+begin
+
+    UUT: alu_4bit
+    port map (
+        A => A,
+        B => B,
+        Sel => Sel,
+        Result => Result
+    );
+
+    process
+    begin
+
+        A <= "1010";
+        B <= "0011";
+
+        Sel <= "000"; wait for 20 ns; -- Addition
+        Sel <= "001"; wait for 20 ns; -- Subtraction
+        Sel <= "010"; wait for 20 ns; -- AND
+        Sel <= "011"; wait for 20 ns; -- NAND
+        Sel <= "100"; wait for 20 ns; -- OR
+        Sel <= "101"; wait for 20 ns; -- XOR
+        Sel <= "110"; wait for 20 ns; -- XNOR
+
+        wait;
     end process;
 
 end Behavioral;
