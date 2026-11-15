@@ -1,0 +1,212 @@
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity fifo_memory is
+    generic (
+        DATA_WIDTH : integer := 8;
+        FIFO_DEPTH : integer := 16
+    );
+
+    port (
+        clk   : in std_logic;
+        rst   : in std_logic;
+        wr_en : in std_logic;
+        rd_en : in std_logic;
+
+        din   : in std_logic_vector(DATA_WIDTH-1 downto 0);
+        dout  : out std_logic_vector(DATA_WIDTH-1 downto 0);
+
+        full  : out std_logic;
+        empty : out std_logic
+    );
+end entity;
+
+architecture rtl of fifo_memory is
+
+    type ram_type is array (0 to FIFO_DEPTH-1)
+        of std_logic_vector(DATA_WIDTH-1 downto 0);
+
+    signal memory : ram_type :=
+        (others => (others => '0'));
+
+    signal wr_ptr : integer range 0 to FIFO_DEPTH-1 := 0;
+    signal rd_ptr : integer range 0 to FIFO_DEPTH-1 := 0;
+
+    signal count : integer range 0 to FIFO_DEPTH := 0;
+
+    signal full_i : std_logic;
+    signal empty_i : std_logic;
+
+begin
+
+    full_i <= '1' when count = FIFO_DEPTH else '0';
+    empty_i <= '1' when count = 0 else '0';
+
+    full <= full_i;
+    empty <= empty_i;
+
+    process(clk, rst)
+    begin
+
+        if rst = '1' then
+            wr_ptr <= 0;
+            rd_ptr <= 0;
+            count <= 0;
+            dout <= (others => '0');
+
+        elsif rising_edge(clk) then
+
+            -- Write operation
+            if (wr_en = '1' and full_i = '0') then
+
+                memory(wr_ptr) <= din;
+
+                if wr_ptr = FIFO_DEPTH-1 then
+                    wr_ptr <= 0;
+                else
+                    wr_ptr <= wr_ptr + 1;
+                end if;
+
+            end if;
+
+            -- Read operation
+            if (rd_en = '1' and empty_i = '0') then
+
+                dout <= memory(rd_ptr);
+
+                if rd_ptr = FIFO_DEPTH-1 then
+                    rd_ptr <= 0;
+                else
+                    rd_ptr <= rd_ptr + 1;
+                end if;
+
+            end if;
+
+            -- Count management
+            if (wr_en = '1' and full_i = '0') and
+               not (rd_en = '1' and empty_i = '0') then
+
+                count <= count + 1;
+
+            elsif (rd_en = '1' and empty_i = '0') and
+                  not (wr_en = '1' and full_i = '0') then
+
+                count <= count - 1;
+
+            end if;
+
+        end if;
+
+    end process;
+
+end architecture;
+
+
+
+
+
+################################################# Testbench code ##########################################
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity tb_fifo_memory is
+end entity;
+
+architecture behavior of tb_fifo_memory is
+
+    constant DATA_WIDTH : integer := 8;
+    constant FIFO_DEPTH : integer := 4;
+
+    signal clk : std_logic := '0';
+    signal rst : std_logic := '0';
+
+    signal wr_en : std_logic := '0';
+    signal rd_en : std_logic := '0';
+
+    signal din : std_logic_vector(7 downto 0)
+                 := (others => '0');
+
+    signal dout : std_logic_vector(7 downto 0);
+
+    signal full : std_logic;
+    signal empty : std_logic;
+
+    constant clk_period : time := 20 ns;
+
+begin
+
+    -- Instantiate FIFO
+    uut: entity work.fifo_memory
+        generic map (
+            DATA_WIDTH => DATA_WIDTH,
+            FIFO_DEPTH => FIFO_DEPTH
+        )
+
+        port map (
+            clk => clk,
+            rst => rst,
+            wr_en => wr_en,
+            rd_en => rd_en,
+            din => din,
+            dout => dout,
+            full => full,
+            empty => empty
+        );
+
+    -- Clock generation
+    clk_process : process
+    begin
+
+        clk <= '0';
+        wait for clk_period/2;
+
+        clk <= '1';
+        wait for clk_period/2;
+
+    end process;
+
+    -- Test process
+    stim_proc : process
+    begin
+
+        -- Step 1: Reset
+        rst <= '1';
+        wait for clk_period*2;
+
+        rst <= '0';
+        wait for clk_period;
+
+        -- Step 2: Write data
+        wr_en <= '1';
+
+        din <= x"AA";
+        wait for clk_period;
+
+        din <= x"BB";
+        wait for clk_period;
+
+        din <= x"CC";
+        wait for clk_period;
+
+        din <= x"DD";
+        wait for clk_period;
+
+        wr_en <= '0';
+        wait for clk_period*2;
+
+        -- Step 3: Read data
+        rd_en <= '1';
+        wait for clk_period*4;
+
+        rd_en <= '0';
+
+        wait;
+
+    end process;
+
+end architecture;
